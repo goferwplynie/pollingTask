@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"math/rand/v2"
 	"net/http"
 	"time"
@@ -23,7 +25,9 @@ func NewHandlers(ts *TaskStore) *Handlers {
 func (h *Handlers) ShortPollHandler(c *gin.Context) {
 	var request models.TaskRequest
 
-	if err := c.ShouldBindJSON(request); err != nil {
+	if err := c.ShouldBindJSON(&request); err != nil {
+		b, _ := io.ReadAll(c.Request.Body)
+		log.Println(string(b))
 		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("bad request body ~w~"))
 	}
 
@@ -46,12 +50,12 @@ func (h *Handlers) ShortTaskStatusHandler(c *gin.Context) {
 		c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
-	c.JSON(http.StatusOK, task)
 	if task.Status != models.PENDING {
 		c.Header("Location", "/api/short/task_result/"+taskId)
 
 		h.taskStore.RemoveTaskStatus(taskId)
 	}
+	c.JSON(http.StatusOK, task)
 }
 
 func (h *Handlers) ShortTaskFinishedHandler(c *gin.Context) {

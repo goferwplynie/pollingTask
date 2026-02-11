@@ -15,4 +15,5 @@ func main() {
 	r.GET("/api/short/task/:id", h.ShortTaskStatusHandler)
 	r.GET("/api/short/task_result/:id", h.ShortTaskFinishedHandler)
 
+	r.Run()
 }
