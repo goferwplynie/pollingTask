@@ -22,6 +22,46 @@ func NewHandlers(ts *TaskStore) *Handlers {
 	}
 }
 
+func (h *Handlers) LongPollHandler(c *gin.Context) {
+	var request models.TaskRequest
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		b, _ := io.ReadAll(c.Request.Body)
+		log.Println(string(b))
+		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("bad request body ~w~"))
+	}
+
+	channel := make(chan models.TaskStatusResponse)
+	taskId := h.taskStore.AddLongTask(channel)
+
+	go func(request models.TaskRequest, channel chan models.TaskStatusResponse, taskId string) {
+		timeout := time.Minute * 3
+		time.Sleep(timeout)
+
+		channel <- models.TaskStatusResponse{
+			Email:  request.Email,
+			Status: models.DONE,
+		}
+		h.taskStore.FinishTask(taskId, request.Email)
+	}(request, channel, taskId)
+	c.Header("Location", "/api/long/task/"+taskId)
+}
+
+func (h *Handlers) LongTaskStatusHandler(c *gin.Context) {
+	taskId := c.Param("id")
+
+	taskChan, err := h.taskStore.GetLongTask(taskId)
+	if err != nil {
+		c.AbortWithError(http.StatusNotFound, fmt.Errorf("task not found TwT"))
+		return
+	}
+
+	taskStatus := <-taskChan
+
+	c.JSON(http.StatusOK, taskStatus)
+	c.Header("Location", "/api/long/task_result/"+taskId)
+}
+
 func (h *Handlers) ShortPollHandler(c *gin.Context) {
 	var request models.TaskRequest
 
@@ -34,8 +74,8 @@ func (h *Handlers) ShortPollHandler(c *gin.Context) {
 	taskId := h.taskStore.AddTask(request)
 
 	go func(taskId string) {
-		timeout := rand.IntN(10)
-		time.Sleep(time.Second * time.Duration(timeout))
+		timeout := time.Second * time.Duration(rand.IntN(10))
+		time.Sleep(timeout)
 
 		h.taskStore.ChangeStatus(taskId, models.DONE)
 	}(taskId)
@@ -58,7 +98,7 @@ func (h *Handlers) ShortTaskStatusHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, task)
 }
 
-func (h *Handlers) ShortTaskFinishedHandler(c *gin.Context) {
+func (h *Handlers) TaskFinishedHandler(c *gin.Context) {
 	taskId := c.Param("id")
 
 	result, err := h.taskStore.GetFinished(taskId)

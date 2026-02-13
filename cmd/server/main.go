@@ -13,7 +13,11 @@ func main() {
 
 	r.POST("/api/short/task", h.ShortPollHandler)
 	r.GET("/api/short/task/:id", h.ShortTaskStatusHandler)
-	r.GET("/api/short/task_result/:id", h.ShortTaskFinishedHandler)
+	r.GET("/api/short/task_result/:id", h.TaskFinishedHandler)
+
+	r.POST("/api/long/task", h.LongPollHandler)
+	r.GET("/api/long/task/:id", h.LongTaskStatusHandler)
+	r.GET("/api/long/task_result/:id", h.TaskFinishedHandler)
 
 	r.Run()
 }

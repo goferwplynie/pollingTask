@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	Host = "http://127.0.0.1:8080"
-	Base = "/api/short"
+	Host      = "http://127.0.0.1:8080"
+	ShortBase = "/api/short"
+	LongBase  = "/api/long"
 )
 
 type Logger struct{}
@@ -29,6 +30,50 @@ func (*Logger) Error(info any) {
 var logger Logger
 
 func main() {
+	long()
+	short()
+}
+
+func long() {
+	logger = Logger{}
+
+	taskRequest := models.TaskRequest{
+		Email: "nEY9R@example.com",
+		Count: 5,
+	}
+	marshalled, _ := json.Marshal(taskRequest)
+
+	req, err := http.NewRequest(http.MethodPost, Host+LongBase+"/task", bytes.NewBuffer(marshalled))
+	if err != nil {
+		logger.Error("failed to build request T~T")
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error("request failed T~T")
+		return
+	}
+
+	resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		logger.Error("Server returned error status: " + resp.Status)
+		return
+	}
+
+	statusLocation := resp.Header.Get("Location")
+	if statusLocation == "" {
+		logger.Error("Empty Location header! Backend didn't tell us where to look.")
+		return
+	}
+
+	logger.Log("Task submitted! Checking status at: " + statusLocation)
+}
+
+func short() {
 	logger = Logger{}
 	taskRequest := models.TaskRequest{
 		Email: "nEY9R@example.com",
@@ -36,7 +81,7 @@ func main() {
 	}
 	marshalled, _ := json.Marshal(taskRequest)
 
-	req, err := http.NewRequest(http.MethodPost, Host+Base+"/task", bytes.NewBuffer(marshalled))
+	req, err := http.NewRequest(http.MethodPost, Host+ShortBase+"/task", bytes.NewBuffer(marshalled))
 	if err != nil {
 		logger.Error("failed to build request T~T")
 		return
