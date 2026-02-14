@@ -31,7 +31,7 @@ func (h *Handlers) LongPollHandler(c *gin.Context) {
 		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("bad request body ~w~"))
 	}
 
-	channel := make(chan models.TaskStatusResponse)
+	channel := make(chan models.TaskStatusResponse, 1)
 	taskId := h.taskStore.AddLongTask(channel)
 
 	go func(request models.TaskRequest, channel chan models.TaskStatusResponse, taskId string) {
@@ -56,10 +56,14 @@ func (h *Handlers) LongTaskStatusHandler(c *gin.Context) {
 		return
 	}
 
-	taskStatus := <-taskChan
-
-	c.JSON(http.StatusOK, taskStatus)
-	c.Header("Location", "/api/long/task_result/"+taskId)
+	select {
+	case taskStatus := <-taskChan:
+		c.Header("Location", "/api/long/task_result/"+taskId)
+		c.JSON(http.StatusOK, taskStatus)
+	case <-c.Request.Context().Done():
+		log.Println("client disconnected, releasing channel listener")
+		return
+	}
 }
 
 func (h *Handlers) ShortPollHandler(c *gin.Context) {
@@ -106,7 +110,6 @@ func (h *Handlers) TaskFinishedHandler(c *gin.Context) {
 		c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
-
 	h.taskStore.RemoveTaskFinished(taskId)
 
 	c.JSON(http.StatusOK, result)

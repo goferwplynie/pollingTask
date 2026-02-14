@@ -71,6 +71,73 @@ func long() {
 	}
 
 	logger.Log("Task submitted! Checking status at: " + statusLocation)
+
+	resultLocation, err := longPoll(statusLocation)
+	if err != nil {
+		logger.Error("long polling failed T~T")
+		logger.Error(err)
+		return
+	}
+
+	finalURL := Host + resultLocation
+
+	req, err = http.NewRequest(http.MethodGet, finalURL, nil)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result models.TaskResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		logger.Error("failed to unmarshall result")
+		return
+	}
+
+	logger.Log("Final Result received! >^.^<")
+	logger.Log(result)
+}
+
+func longPoll(location string) (string, error) {
+	targetURL := Host + location
+
+	client := &http.Client{
+		Timeout: 1 * time.Minute,
+	}
+
+	for {
+		req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+		if err != nil {
+			return "", err
+		}
+
+		logger.Log("waiting for task to complete... ~w~")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			logger.Error("long poll request failed, retrying... TwT")
+			time.Sleep(1 * time.Second)
+			continue
+		}
+
+		var response models.TaskStatusResponse
+		err = json.NewDecoder(resp.Body).Decode(&response)
+		resp.Body.Close()
+
+		if err != nil {
+			logger.Error("failed to decode status body")
+			return "", err
+		}
+
+		logger.Log("Meeeow! task finished, status: " + response.Status + " >^w^<")
+		return resp.Header.Get("Location"), nil
+	}
 }
 
 func short() {
